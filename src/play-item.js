@@ -1,13 +1,13 @@
-import window from 'global/window';
 import {setup} from './auto-advance.js';
 
 /**
  * Removes all remote text tracks from a player.
  *
  * @param  {Player} player
+ *         The player to clear tracks on
  */
 const clearTracks = (player) => {
-  let tracks = player.remoteTextTracks();
+  const tracks = player.remoteTextTracks();
   let i = tracks && tracks.length || 0;
 
   // This uses a `while` loop rather than `forEach` because the
@@ -21,40 +21,38 @@ const clearTracks = (player) => {
  * Plays an item on a player's playlist.
  *
  * @param  {Player} player
- * @param  {Number} delay
- *         The number of seconds to wait before each auto-advance.
+ *         The player to play the item on
  *
  * @param  {Object} item
  *         A source from the playlist.
  *
  * @return {Player}
+ *         The player that is now playing the item
  */
-const playItem = (player, delay, item) => {
-  let Cue = window.VTTCue || window.TextTrackCue;
-  let replay = !player.paused() || player.ended();
+const playItem = (player, item) => {
+  const replay = !player.paused() || player.ended();
 
+  player.trigger('beforeplaylistitem', item);
   player.poster(item.poster || '');
   player.src(item.sources);
-
   clearTracks(player);
 
-  if (item.cuePoints && item.cuePoints.length) {
-    let trackEl = player.addRemoteTextTrack({ kind: 'metadata' });
+  player.ready(() => {
+    (item.textTracks || []).forEach(player.addRemoteTextTrack.bind(player));
+    player.trigger('playlistitem', item);
 
-    item.cuePoints.forEach(cue => {
-      let vttCue = new Cue(cue.time, cue.time, cue.type);
+    if (replay) {
+      const playPromise = player.play();
 
-      trackEl.track.addCue(vttCue);
-    });
-  }
+      // silence error when a pause interrupts a play request
+      // on browsers which return a promise
+      if (typeof playPromise !== 'undefined' && typeof playPromise.then === 'function') {
+        playPromise.then(null, (e) => {});
+      }
+    }
 
-  (item.textTracks || []).forEach(player.addRemoteTextTrack.bind(player));
-
-  if (replay) {
-    player.play();
-  }
-
-  setup(player, delay);
+    setup(player, player.playlist.autoadvance_.delay);
+  });
 
   return player;
 };

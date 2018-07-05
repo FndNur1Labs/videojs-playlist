@@ -1,4 +1,5 @@
 import QUnit from 'qunit';
+import sinon from 'sinon';
 import playItem from '../src/play-item';
 import {clearTracks} from '../src/play-item';
 import playerProxyMaker from './player-proxy-maker';
@@ -6,9 +7,9 @@ import playerProxyMaker from './player-proxy-maker';
 QUnit.module('play-item');
 
 QUnit.test('clearTracks will try and remove all tracks', function(assert) {
-  let player = playerProxyMaker();
-  let remoteTracks = [1, 2, 3];
-  let removedTracks = [];
+  const player = playerProxyMaker();
+  const remoteTracks = [1, 2, 3];
+  const removedTracks = [];
 
   player.remoteTextTracks = function() {
     return remoteTracks;
@@ -27,69 +28,8 @@ QUnit.test('clearTracks will try and remove all tracks', function(assert) {
   );
 });
 
-QUnit.test(
-  'playItem() works as expected for setting sources, poster, tracks and cue points',
-  function(assert) {
-    let oldVttCue = window.VTTCue;
-    let player = playerProxyMaker();
-    let setSrc;
-    let setPoster;
-    let setTracks = [];
-    let cues = [];
-
-    window.VTTCue = (time, timeEnd, type) => ({ time, type });
-
-    player.src = function(src) {
-      setSrc = src;
-    };
-
-    player.poster = function(poster) {
-      setPoster = poster;
-    };
-
-    player.addRemoteTextTrack = function(tt) {
-      setTracks.push(tt);
-      return {
-        track: {
-          addCue(cue) {
-            cues.push(cue);
-          }
-        }
-      };
-    };
-
-    playItem(player, null, {
-      sources: [1, 2, 3],
-      textTracks: [4, 5, 6],
-      poster: 'http://example.com/poster.png',
-      cuePoints: [{ time: 0, type: 'foo' }, { time: 1, type: 'bar' }]
-    });
-
-    assert.deepEqual(setSrc, [1, 2, 3], 'sources are what we expected');
-    assert.deepEqual(
-      setTracks.sort(),
-      [4, 5, 6, { kind: 'metadata' }].sort(),
-      'tracks are what we expected'
-    );
-
-    assert.equal(
-      setPoster,
-      'http://example.com/poster.png',
-      'poster is what we expected'
-    );
-
-    assert.deepEqual(
-      cues,
-      [{ time: 0, type: 'foo' }, { time: 1, type: 'bar' }],
-      'cues are what we expected'
-    );
-
-    window.VTTCue = oldVttCue;
-  }
-);
-
 QUnit.test('will not try to play if paused', function(assert) {
-  let player = playerProxyMaker();
+  const player = playerProxyMaker();
   let tryPlay = false;
 
   player.paused = function() {
@@ -100,7 +40,7 @@ QUnit.test('will not try to play if paused', function(assert) {
     tryPlay = true;
   };
 
-  playItem(player, null, {
+  playItem(player, {
     sources: [1, 2, 3],
     textTracks: [4, 5, 6],
     poster: 'http://example.com/poster.png'
@@ -110,7 +50,7 @@ QUnit.test('will not try to play if paused', function(assert) {
 });
 
 QUnit.test('will try to play if not paused', function(assert) {
-  let player = playerProxyMaker();
+  const player = playerProxyMaker();
   let tryPlay = false;
 
   player.paused = function() {
@@ -121,7 +61,7 @@ QUnit.test('will try to play if not paused', function(assert) {
     tryPlay = true;
   };
 
-  playItem(player, null, {
+  playItem(player, {
     sources: [1, 2, 3],
     textTracks: [4, 5, 6],
     poster: 'http://example.com/poster.png'
@@ -131,7 +71,7 @@ QUnit.test('will try to play if not paused', function(assert) {
 });
 
 QUnit.test('will not try to play if paused and not ended', function(assert) {
-  let player = playerProxyMaker();
+  const player = playerProxyMaker();
   let tryPlay = false;
 
   player.paused = function() {
@@ -146,7 +86,7 @@ QUnit.test('will not try to play if paused and not ended', function(assert) {
     tryPlay = true;
   };
 
-  playItem(player, null, {
+  playItem(player, {
     sources: [1, 2, 3],
     textTracks: [4, 5, 6],
     poster: 'http://example.com/poster.png'
@@ -156,7 +96,7 @@ QUnit.test('will not try to play if paused and not ended', function(assert) {
 });
 
 QUnit.test('will try to play if paused and ended', function(assert) {
-  let player = playerProxyMaker();
+  const player = playerProxyMaker();
   let tryPlay = false;
 
   player.paused = function() {
@@ -171,11 +111,27 @@ QUnit.test('will try to play if paused and ended', function(assert) {
     tryPlay = true;
   };
 
-  playItem(player, null, {
+  playItem(player, {
     sources: [1, 2, 3],
-    textTracks: [4, 5, 6],
     poster: 'http://example.com/poster.png'
   });
 
   assert.ok(tryPlay, 'we replayed on not-paused');
+});
+
+QUnit.test('fires "beforeplaylistitem" and "playlistitem"', function(assert) {
+  const player = playerProxyMaker();
+  const beforeSpy = sinon.spy();
+  const spy = sinon.spy();
+
+  player.on('beforeplaylistitem', beforeSpy);
+  player.on('playlistitem', spy);
+
+  playItem(player, {
+    sources: [1, 2, 3],
+    poster: 'http://example.com/poster.png'
+  });
+
+  assert.strictEqual(beforeSpy.callCount, 1);
+  assert.strictEqual(spy.callCount, 1);
 });

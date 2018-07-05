@@ -1,13 +1,14 @@
 import window from 'global/window';
 import QUnit from 'qunit';
+import sinon from 'sinon';
 import * as autoadvance from '../src/auto-advance.js';
 import playerProxyMaker from './player-proxy-maker.js';
 
 QUnit.module('auto-advance');
 
 QUnit.test('set up ended listener if one does not exist yet', function(assert) {
-  let player = playerProxyMaker();
-  let ones = [];
+  const player = playerProxyMaker();
+  const ones = [];
 
   player.one = function(type) {
     ones.push(type);
@@ -20,9 +21,9 @@ QUnit.test('set up ended listener if one does not exist yet', function(assert) {
 });
 
 QUnit.test('off previous listener if exists before adding a new one', function(assert) {
-  let player = playerProxyMaker();
-  let ones = [];
-  let offs = [];
+  const player = playerProxyMaker();
+  const ones = [];
+  const offs = [];
 
   player.one = function(type) {
     ones.push(type);
@@ -47,10 +48,10 @@ QUnit.test('off previous listener if exists before adding a new one', function(a
 });
 
 QUnit.test('do nothing if timeout is weird', function(assert) {
-  let player = playerProxyMaker();
+  const player = playerProxyMaker();
 
-  let ones = [];
-  let offs = [];
+  const ones = [];
+  const offs = [];
 
   player.one = function(type) {
     ones.push(type);
@@ -71,10 +72,10 @@ QUnit.test('do nothing if timeout is weird', function(assert) {
 });
 
 QUnit.test('reset if timeout is weird after we advance', function(assert) {
-  let player = playerProxyMaker();
+  const player = playerProxyMaker();
 
-  let ones = [];
-  let offs = [];
+  const ones = [];
+  const offs = [];
 
   player.one = function(type) {
     ones.push(type);
@@ -106,8 +107,8 @@ QUnit.test('reset if timeout is weird after we advance', function(assert) {
 });
 
 QUnit.test('reset if we have already started advancing', function(assert) {
-  let player = playerProxyMaker();
-  let oldClearTimeout = window.clearTimeout;
+  const player = playerProxyMaker();
+  const oldClearTimeout = window.clearTimeout;
   let clears = 0;
 
   window.clearTimeout = function() {
@@ -124,8 +125,8 @@ QUnit.test('reset if we have already started advancing', function(assert) {
 });
 
 QUnit.test('timeout is given in seconds', function(assert) {
-  let player = playerProxyMaker();
-  let oldSetTimeout = window.setTimeout;
+  const player = playerProxyMaker();
+  const oldSetTimeout = window.setTimeout;
 
   player.addEventListener = Function.prototype;
 
@@ -137,4 +138,30 @@ QUnit.test('timeout is given in seconds', function(assert) {
   player.trigger('ended');
 
   window.setTimeout = oldSetTimeout;
+});
+
+QUnit.test('cancel a pending auto-advance if play is requested', function(assert) {
+  const clock = sinon.useFakeTimers();
+  const player = playerProxyMaker();
+
+  sinon.spy(player.playlist, 'next');
+
+  autoadvance.setup(player, 10);
+  player.trigger('ended');
+  clock.tick(10000);
+
+  assert.equal(player.playlist.next.callCount, 1, 'next was called');
+
+  autoadvance.setup(player, 10);
+  player.trigger('ended');
+  clock.tick(5000);
+  player.trigger('play');
+  clock.tick(5000);
+
+  assert.equal(player.playlist.next.callCount, 1, 'next was not called because a "play" occurred');
+
+  player.trigger('ended');
+  clock.tick(10000);
+
+  assert.equal(player.playlist.next.callCount, 2, 'next was called again because the content ended again and the appropriate wait time elapsed');
 });
